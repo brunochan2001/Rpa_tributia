@@ -35,6 +35,7 @@ bucket_name = "dev-sg-datalake"
 
 # Crear la carpeta si no existe
 os.makedirs(download_dir, exist_ok=True)
+os.chmod(download_dir, 0o777) 
 
 print("Directorio de descarga:", download_dir)
 
@@ -67,31 +68,30 @@ driver.find_element(By.ID, "rutcntr").send_keys(USERNAME)
 driver.find_element(By.ID, "clave").send_keys(PASSWORD)
 
 driver.find_element(By.ID, "bt_ingresar").click()
+time.sleep(10)
 
 # Monitorear carpeta de descargas
-# before_files = set(os.listdir(download_dir))
+before_files = set(os.listdir(download_dir))
 
 # Navegar a la página de descarga
-driver.get(f"{DOWNLOAD_PAGE}RUT_EMP={CLIENT_ID[:-1]}&DV_EMP={CLIENT_ID[-1]}&ORIGEN=RCP&RUT_RECP=&FOLIO=&FOLIOHASTA=&RZN_SOC=&FEC_DESDE=&FEC_HASTA=&TPO_DOC=&ESTADO=&ORDEN=&DOWNLOAD=XML")
-  
-time.sleep(60)
+DOWNLOAD_URL = f"{DOWNLOAD_PAGE}RUT_EMP={CLIENT_ID[:-1]}&DV_EMP={CLIENT_ID[-1]}&ORIGEN=RCP&RUT_RECP=&FOLIO=&FOLIOHASTA=&RZN_SOC=&FEC_DESDE=&FEC_HASTA=&TPO_DOC=&ESTADO=&ORDEN=&DOWNLOAD=XML"
+driver.get(DOWNLOAD_URL)
+
 after_files = set(os.listdir(download_dir))
-
 print("after_files",after_files)
-
 
 # Cerrar el navegador
 driver.quit()
 
-# Ruta del archivo descargado
-file_path = os.path.join(download_dir, downloaded_file)
-compressed_path = file_path + ".gz"
+# # Ruta del archivo descargado
+# file_path = os.path.join(download_dir, downloaded_file)
+# compressed_path = file_path + ".gz"
 
-# Comprimir el archivo en GZIP
-with open(file_path, "rb") as f_in, gzip.open(compressed_path, "wb") as f_out:
-    shutil.copyfileobj(f_in, f_out)
+# # Comprimir el archivo en GZIP
+# with open(file_path, "rb") as f_in, gzip.open(compressed_path, "wb") as f_out:
+#     shutil.copyfileobj(f_in, f_out)
 
-# Subir a S3 el archivo comprimido
-s3.upload_file(compressed_path, bucket_name, f"TributIA_Test/{downloaded_file}.gz")
+# # Subir a S3 el archivo comprimido
+# s3.upload_file(compressed_path, bucket_name, f"TributIA_Test/{downloaded_file}.gz")
 
-print(f"Archivo descargado en: {download_dir}")
+# print(f"Archivo descargado en: {download_dir}")
