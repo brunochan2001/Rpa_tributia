@@ -3,6 +3,10 @@ from selenium.webdriver.common.by import By
 import time
 import os
 from dotenv import load_dotenv
+from selenium.webdriver.chrome.service import Service
+import gzip
+import boto3
+
 current_path = os.getcwd()
 print("Current Path:", current_path)
 
@@ -12,22 +16,46 @@ PASSWORD = os.getenv("PASSWORD")
 CLIENT_ID = os.getenv("CLIENT_ID")
 LANDING_PAGE = os.getenv("LANDING_PAGE")
 DOWNLOAD_PAGE = os.getenv("DOWNLOAD_PAGE")
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+AWS_REGION = os.getenv("AWS_REGION")
 
 # Definir la carpeta donde se guardará el archivo descargado
 download_dir = os.path.expanduser(current_path)  # Cambia esto si quieres otra ruta
 
+# Configurar cliente S3
+s3 = boto3.client(
+    "s3",
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    region_name=AWS_REGION,
+)
+
+bucket_name = "dev-sg-datalake"
+
 # Crear la carpeta si no existe
 os.makedirs(download_dir, exist_ok=True)
 
-# Configurar opciones para Firefox
-options = webdriver.FirefoxOptions()
-options.set_preference("browser.download.folderList", 2)  # Usar una carpeta personalizada
-options.set_preference("browser.download.dir", download_dir)  # Establecer la carpeta de descargas
-options.set_preference("browser.helperApps.neverAsk.saveToDisk", "text/xml,application/xml")  # Evitar diálogos de descarga
-options.set_preference("pdfjs.disabled", True)  # Deshabilitar visor de PDF en Firefox
+print("Directorio de descarga:", download_dir)
 
-# Iniciar WebDriver de Firefox
-driver = webdriver.Firefox(options=options)
+# Configurar opciones para Chrome
+options = webdriver.ChromeOptions()
+options.binary_location = "/usr/bin/chromium"  # Adjust if needed
+service = Service("/usr/bin/chromedriver")  # Use system-installed chromedriver
+options.arguments.extend(["--no-sandbox", "--disable-setuid-sandbox"])
+options.add_argument("--headless")  # Ejecutar sin interfaz gráfica
+# options.add_argument("--no-sandbox")
+# options.add_argument("--disable-dev-shm-usage")
+options.add_experimental_option("prefs", {
+    "download.default_directory": download_dir,
+    "download.prompt_for_download": False,
+    "download.directory_upgrade": True,
+    "safebrowsing.enabled": True,
+    "plugins.always_open_pdf_externally": True
+})
+
+# Iniciar WebDriver
+driver = webdriver.Chrome(service=service, options=options)
 
 # Abrir la página de autenticación
 driver.get(LANDING_PAGE)
@@ -40,10 +68,30 @@ driver.find_element(By.ID, "clave").send_keys(PASSWORD)
 
 driver.find_element(By.ID, "bt_ingresar").click()
 
+# Monitorear carpeta de descargas
+# before_files = set(os.listdir(download_dir))
+
 # Navegar a la página de descarga
 driver.get(f"{DOWNLOAD_PAGE}RUT_EMP={CLIENT_ID[:-1]}&DV_EMP={CLIENT_ID[-1]}&ORIGEN=RCP&RUT_RECP=&FOLIO=&FOLIOHASTA=&RZN_SOC=&FEC_DESDE=&FEC_HASTA=&TPO_DOC=&ESTADO=&ORDEN=&DOWNLOAD=XML")
+  
+time.sleep(60)
+after_files = set(os.listdir(download_dir))
+
+print("after_files",after_files)
+
 
 # Cerrar el navegador
 driver.quit()
+
+# Ruta del archivo descargado
+file_path = os.path.join(download_dir, downloaded_file)
+compressed_path = file_path + ".gz"
+
+# Comprimir el archivo en GZIP
+with open(file_path, "rb") as f_in, gzip.open(compressed_path, "wb") as f_out:
+    shutil.copyfileobj(f_in, f_out)
+
+# Subir a S3 el archivo comprimido
+s3.upload_file(compressed_path, bucket_name, f"TributIA_Test/{downloaded_file}.gz")
 
 print(f"Archivo descargado en: {download_dir}")
