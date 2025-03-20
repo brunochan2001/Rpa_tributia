@@ -99,7 +99,7 @@ with open(file_path, "rb") as f_in, gzip.open(compressed_path, "wb") as f_out:
 s3.upload_file(compressed_path, bucket_name, f"gzip/{downloaded_file}.gz")
 print(f"Gzip file saved successfully!")
 
-# Definir esquema usando PyArrow
+# Define schema using PyArrow
 schema = pa.schema([
     ('id', pa.int32()),
     ('name', pa.string()),
@@ -108,7 +108,7 @@ schema = pa.schema([
     ('is_manager', pa.bool_())
 ])
 
-# Crear un DataFrame que coincidia con el esquema
+# Create a DataFrame that matches the schema
 data = {
     'id': [1, 2, 3],
     'name': ['Alice', 'Bob', 'Charlie'],
