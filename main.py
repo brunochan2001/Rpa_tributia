@@ -7,6 +7,9 @@ from selenium.webdriver.chrome.service import Service
 import gzip
 import boto3
 import shutil
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 current_path = os.getcwd()
 print("Current Path:", current_path)
@@ -60,13 +63,16 @@ driver = webdriver.Chrome(service=service, options=options)
 
 # Abrir la página de autenticación
 driver.get(LANDING_PAGE)
+time.sleep(10)
 driver.set_window_size(550, 692)
+print("first sleep")
 
 # Ingresar credenciales
 driver.find_element(By.ID, "rutcntr").send_keys(USERNAME)
 driver.find_element(By.ID, "clave").send_keys(PASSWORD)
 driver.find_element(By.ID, "bt_ingresar").click()
-time.sleep(40)
+time.sleep(20)
+print("second sleep")
 
 before_files = set(os.listdir(download_dir))  # Archivos antes de la descarga
 
@@ -77,6 +83,7 @@ driver.get(DOWNLOAD_URL)
 time.sleep(30)
 
 after_files = set(os.listdir(download_dir))  # Archivos después de la descarga
+print("third sleep", after_files)
 new_files = after_files - before_files  # Identificar el nuevo archivo
 downloaded_file = new_files.pop()  # Obtener el archivo descargado
 print("downloaded_file",downloaded_file)
@@ -96,3 +103,32 @@ with open(file_path, "rb") as f_in, gzip.open(compressed_path, "wb") as f_out:
 s3.upload_file(compressed_path, bucket_name, f"TributIA_Test/{downloaded_file}.gz")
 
 print(f"Archivo descargado en: {download_dir}")
+
+# Define schema using PyArrow
+schema = pa.schema([
+    ('id', pa.int32()),
+    ('name', pa.string()),
+    ('age', pa.int32()),
+    ('salary', pa.float64()),
+    ('is_manager', pa.bool_())
+])
+
+# Create a DataFrame that matches the schema
+data = {
+    'id': [1, 2, 3],
+    'name': ['Alice', 'Bob', 'Charlie'],
+    'age': [25, 30, 35],
+    'salary': [50000.0, 60000.5, 70000.2],
+    'is_manager': [False, True, False]
+}
+
+df = pd.DataFrame(data)
+
+# Convert DataFrame to Arrow Table with the defined schema
+table = pa.Table.from_pandas(df, schema=schema)
+
+# Save to a Parquet file
+pq.write_table(table, file_path)
+
+s3.upload_file(file_path, bucket_name, f"parquet/recibos/{downloaded_file}.parquet")
+print("Parquet file saved successfully!")

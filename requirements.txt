@@ -2,3 +2,5 @@ selenium
 webdriver-manager
 dotenv
 boto3
+pandas
+pyarrow
