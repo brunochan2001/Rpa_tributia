@@ -89,14 +89,13 @@ driver.quit()
 # Ruta del archivo descargado
 file_path = os.path.join(download_dir, downloaded_file)
 
-
 # Comprimir el archivo en GZIP
 compressed_path = file_path + ".gz"
 with open(file_path, "rb") as f_in, gzip.open(compressed_path, "wb") as f_out:
     shutil.copyfileobj(f_in, f_out)
 
 # Subir a S3 el archivo comprimido
-s3.upload_file(compressed_path, bucket_name, f"gzip/{downloaded_file}.gz")
+s3.upload_file(compressed_path, bucket_name, f"gzip/recibos/{downloaded_file}.gz")
 print(f"Gzip file saved successfully!")
 
 # Define schema using PyArrow
