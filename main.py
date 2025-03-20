@@ -1,15 +1,15 @@
-from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from selenium import webdriver
+from dotenv import load_dotenv
+import pyarrow.parquet as pq
+import pyarrow as pa
+import pandas as pd
+import shutil
+import boto3
+import gzip
 import time
 import os
-from dotenv import load_dotenv
-from selenium.webdriver.chrome.service import Service
-import gzip
-import boto3
-import shutil
-import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 
 current_path = os.getcwd()
 print("Current Path:", current_path)
@@ -26,9 +26,7 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION")
 
 # Definir la carpeta donde se guardará el archivo descargado
-download_dir = os.path.expanduser(current_path)  # Cambia esto si quieres otra ruta
-
-print("LANDING_PAGE:", LANDING_PAGE)
+download_dir = os.path.expanduser(current_path) 
 
 # Configurar cliente S3
 s3 = boto3.client(
@@ -38,11 +36,6 @@ s3 = boto3.client(
     region_name=AWS_REGION,
 )
 bucket_name = "dev-sg-datalake"
-
-# Crear la carpeta si no existe
-os.makedirs(download_dir, exist_ok=True)
-os.chmod(download_dir, 0o777) 
-print("Directorio de descarga:", download_dir)
 
 # Configurar opciones para Chrome
 options = webdriver.ChromeOptions()
@@ -65,46 +58,48 @@ driver = webdriver.Chrome(service=service, options=options)
 driver.get(LANDING_PAGE)
 time.sleep(10)
 driver.set_window_size(550, 692)
-print("first sleep")
 
 # Ingresar credenciales
 driver.find_element(By.ID, "rutcntr").send_keys(USERNAME)
 driver.find_element(By.ID, "clave").send_keys(PASSWORD)
 driver.find_element(By.ID, "bt_ingresar").click()
-time.sleep(20)
-print("second sleep")
+time.sleep(10)
 
-before_files = set(os.listdir(download_dir))  # Archivos antes de la descarga
+# Archivos antes de la descarga
+before_files = set(os.listdir(download_dir)) 
 
 # Navegar a la página de descarga
 DOWNLOAD_URL = f"{DOWNLOAD_PAGE}RUT_EMP={CLIENT_ID[:-1]}&DV_EMP={CLIENT_ID[-1]}&ORIGEN=RCP&RUT_RECP=&FOLIO=&FOLIOHASTA=&RZN_SOC=&FEC_DESDE=&FEC_HASTA=&TPO_DOC=&ESTADO=&ORDEN=&DOWNLOAD=XML"
 driver.get(DOWNLOAD_URL)
+time.sleep(20)
 
-time.sleep(30)
+# Archivos después de la descarga
+after_files = set(os.listdir(download_dir)) 
+print("after_files", after_files)
 
-after_files = set(os.listdir(download_dir))  # Archivos después de la descarga
-print("third sleep", after_files)
-new_files = after_files - before_files  # Identificar el nuevo archivo
-downloaded_file = new_files.pop()  # Obtener el archivo descargado
-print("downloaded_file",downloaded_file)
+# Identificar el nuevo archivo
+new_files = after_files - before_files  
+
+# Obtener el archivo descargado
+downloaded_file = new_files.pop()  
 
 # Cerrar el navegador
 driver.quit()
 
 # Ruta del archivo descargado
 file_path = os.path.join(download_dir, downloaded_file)
-compressed_path = file_path + ".gz"
+
 
 # Comprimir el archivo en GZIP
+compressed_path = file_path + ".gz"
 with open(file_path, "rb") as f_in, gzip.open(compressed_path, "wb") as f_out:
     shutil.copyfileobj(f_in, f_out)
 
 # Subir a S3 el archivo comprimido
-s3.upload_file(compressed_path, bucket_name, f"TributIA_Test/{downloaded_file}.gz")
+s3.upload_file(compressed_path, bucket_name, f"gzip/{downloaded_file}.gz")
+print(f"Gzip file saved successfully!")
 
-print(f"Archivo descargado en: {download_dir}")
-
-# Define schema using PyArrow
+# Definir esquema usando PyArrow
 schema = pa.schema([
     ('id', pa.int32()),
     ('name', pa.string()),
@@ -113,7 +108,7 @@ schema = pa.schema([
     ('is_manager', pa.bool_())
 ])
 
-# Create a DataFrame that matches the schema
+# Crear un DataFrame que coincidia con el esquema
 data = {
     'id': [1, 2, 3],
     'name': ['Alice', 'Bob', 'Charlie'],
