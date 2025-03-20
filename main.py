@@ -1,6 +1,7 @@
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import xml.etree.ElementTree as ET
 from selenium.webdriver.common.by import By
 from selenium import webdriver
 from dotenv import load_dotenv
@@ -147,28 +148,51 @@ print(f"Gzip file saved successfully!")
 # Define schema using PyArrow
 schema = pa.schema([
     ('id', pa.int32()),
-    ('name', pa.string()),
-    ('age', pa.int32()),
-    ('salary', pa.float64()),
-    ('is_manager', pa.bool_())
+    ('TipoDTE', pa.string()),
+    ('Folio', pa.string()),
+    ('FchEmis', pa.string()),
+    ('RznSoc', pa.string()),
+    ('MntTotal', pa.string()),
+ 
 ])
 
-# Create a DataFrame that matches the schema
-data = {
-    'id': [1, 2, 3],
-    'name': ['Alice', 'Bob', 'Charlie'],
-    'age': [25, 30, 35],
-    'salary': [50000.0, 60000.5, 70000.2],
-    'is_manager': [False, True, False]
-}
+# parse the xml file
+tree = ET.parse(downloaded_file)
+root = tree.getroot()
+
+# Inicializar la estructura de datos
+valid_items = ["id","TipoDTE", "Folio", "FchEmis", "RznSoc", "MntTotal"]
+data = {key: [] for key in valid_items}
+
+# Variable global para manejar el ID
+index = {"value": 1}
+
+def parse_element(element, item):
+    if "id" not in item:  # Solo asignamos el id una vez por elemento raíz
+        item["id"] = index["value"]
+        index["value"] += 1 
+    
+    if(len(list(element)))==0:
+        item[element.tag] = element.text
+    else :
+        for child in list(element):
+            parse_element(child, item)
+
+for child in root:
+    item = {}
+    parse_element(child,item)
+    # Agregar a la estructura de datos solo los elementos en valid_items
+    for key in valid_items:
+        data[key].append(item.get(key, None))  # Usar None si no existe
 
 df = pd.DataFrame(data)
 
-# Convert DataFrame to Arrow Table with the defined schema
+# # Convert DataFrame to Arrow Table with the defined schema
 table = pa.Table.from_pandas(df, schema=schema)
 
 # Save to a Parquet file
-pq.write_table(table, file_path)
+parquet_path = file_path + ".parquet"
+pq.write_table(table, parquet_path)
 
-s3.upload_file(file_path, bucket_name, f"parquet/recibos/{downloaded_file}.parquet")
+s3.upload_file(parquet_path, bucket_name, f"parquet/recibos/{downloaded_file}.parquet")
 print("Parquet file saved successfully!")
