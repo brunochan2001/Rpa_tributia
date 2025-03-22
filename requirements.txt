@@ -4,3 +4,6 @@ dotenv
 boto3
 pandas
 pyarrow
+xmltodict
+more-itertools
+flatten-dict
